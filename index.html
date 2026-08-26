@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price List App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .app-container {
+            max-width: 500px;
+            margin: auto;
+            min-height: 100vh;
+            background: #ffffff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+        }
+        .nav-btn {
+            font-size: 0.95rem;
+            padding: 12px 4px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .price-card {
+            border-radius: 8px;
+            background: #fff;
+            border-left: 5px solid #0d6efd;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .price-tag {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #198754;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container p-3">
+    <!-- Header -->
+    <div class="text-center py-2 mb-3 border-bottom">
+        <h4 class="fw-bold m-0 text-primary">📦 Price List</h4>
+    </div>
+
+    <!-- Navigation Buttons -->
+    <div class="row g-2 mb-3">
+        <div class="col-4">
+            <button class="btn btn-success w-100 nav-btn" onclick="showSection('add')">🟢 Add Item</button>
+        </div>
+        <div class="col-4">
+            <button class="btn btn-warning w-100 nav-btn text-dark" onclick="showSection('update')">🟠 Update Price</button>
+        </div>
+        <div class="col-4">
+            <button class="btn btn-primary w-100 nav-btn" onclick="showSection('view')">🔵 View List</button>
+        </div>
+    </div>
+
+    <!-- 1. View & Search Section -->
+    <div id="section-view">
+        <div class="mb-3">
+            <input type="text" id="search-input" class="form-control form-control-lg" placeholder="Search item..." onkeyup="filterItems()">
+        </div>
+        <div id="items-list" class="d-flex flex-column gap-2">
+            <div class="text-center text-muted p-4">Loading data...</div>
+        </div>
+    </div>
+
+    <!-- 2. Add Item Section -->
+    <div id="section-add" style="display: none;">
+        <div class="card p-3 border-0 shadow-sm">
+            <h5 class="fw-bold mb-3 text-success">Add New Item</h5>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Item Name</label>
+                <input type="text" id="add-name" class="form-control form-control-lg" placeholder="e.g. Surf Excel 1kg">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Category (Optional)</label>
+                <input type="text" id="add-category" class="form-control" placeholder="e.g. Grocery">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Sale Price (Rs.)</label>
+                <input type="number" id="add-price" class="form-control form-control-lg" placeholder="e.g. 520">
+            </div>
+            <button class="btn btn-success w-100 btn-lg" onclick="saveItem()">Save Item</button>
+        </div>
+    </div>
+
+    <!-- 3. Update Price Section -->
+    <div id="section-update" style="display: none;">
+        <div class="card p-3 border-0 shadow-sm">
+            <h5 class="fw-bold mb-3 text-warning text-dark">Update Item Price</h5>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Select Item</label>
+                <select id="update-select" class="form-select form-select-lg" onchange="onItemSelect()">
+                    <option value="">-- Select Item --</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">New Sale Price (Rs.)</label>
+                <input type="number" id="update-price" class="form-control form-control-lg" placeholder="Enter new price">
+            </div>
+            <button class="btn btn-warning w-100 btn-lg text-dark" onclick="updatePrice()">Update Price</button>
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAG1w38SfKr0PLbV5yJ0k6A9uIpV1mzDtA",
+      authDomain: "shop-price-list-804bd.firebaseapp.com",
+      projectId: "shop-price-list-804bd",
+      storageBucket: "shop-price-list-804bd.firebasestorage.app",
+      messagingSenderId: "842630709457",
+      appId: "1:842630709457:web:2185703d989486d18a85f0"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const itemsCollection = collection(db, "items");
+
+    let allItems = [];
+
+    const q = query(itemsCollection, orderBy("name"));
+    onSnapshot(q, (snapshot) => {
+        allItems = [];
+        snapshot.forEach((doc) => {
+            allItems.push({ id: doc.id, ...doc.data() });
+        });
+        renderItems(allItems);
+        populateDropdown(allItems);
+    });
+
+    window.saveItem = async function() {
+        const name = document.getElementById('add-name').value.trim();
+        const category = document.getElementById('add-category').value.trim();
+        const price = document.getElementById('add-price').value.trim();
+
+        if(!name || !price) {
+            alert('Please enter both name and price!');
+            return;
+        }
+
+        try {
+            await addDoc(itemsCollection, {
+                name: name,
+                category: category || 'General',
+                price: Number(price),
+                updatedAt: new Date().toISOString()
+            });
+            alert('Item added successfully!');
+            document.getElementById('add-name').value = '';
+            document.getElementById('add-category').value = '';
+            document.getElementById('add-price').value = '';
+            showSection('view');
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    };
+
+    window.updatePrice = async function() {
+        const docId = document.getElementById('update-select').value;
+        const newPrice = document.getElementById('update-price').value.trim();
+
+        if(!docId || !newPrice) {
+            alert('Please select an item and enter new price!');
+            return;
+        }
+
+        try {
+            const itemRef = doc(db, "items", docId);
+            await updateDoc(itemRef, {
+                price: Number(newPrice),
+                updatedAt: new Date().toISOString()
+            });
+            alert('Price updated successfully!');
+            document.getElementById('update-price').value = '';
+            showSection('view');
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    };
+
+    window.renderItems = function(items) {
+        const listDiv = document.getElementById('items-list');
+        listDiv.innerHTML = '';
+
+        if(items.length === 0) {
+            listDiv.innerHTML = '<div class="text-center text-muted p-4">No items found. Click "Add Item" to add new products.</div>';
+            return;
+        }
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'price-card p-3 d-flex justify-content-between align-items-center';
+            card.setAttribute('data-name', item.name.toLowerCase());
+            card.innerHTML = `
+                <div>
+                    <div class="fw-bold text-dark fs-5">${item.name}</div>
+                    <small class="text-muted">${item.category || ''}</small>
+                </div>
+                <div class="price-tag">Rs. ${item.price}</div>
+            `;
+            listDiv.appendChild(card);
+        });
+    };
+
+    function populateDropdown(items) {
+        const select = document.getElementById('update-select');
+        select.innerHTML = '<option value="">-- Select Item --</option>';
+        items.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = `${item.name} (Current: Rs. ${item.price})`;
+            select.appendChild(opt);
+        });
+    }
+
+    window.onItemSelect = function() {
+        const docId = document.getElementById('update-select').value;
+        const selectedItem = allItems.find(it => it.id === docId);
+        if(selectedItem) {
+            document.getElementById('update-price').value = selectedItem.price;
+        } else {
+            document.getElementById('update-price').value = '';
+        }
+    };
+
+    window.filterItems = function() {
+        const query = document.getElementById('search-input').value.toLowerCase();
+        const cards = document.querySelectorAll('#items-list .price-card');
+        cards.forEach(card => {
+            const name = card.getAttribute('data-name');
+            if(name.includes(query)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    };
+
+    window.showSection = function(section) {
+        document.getElementById('section-view').style.display = section === 'view' ? 'block' : 'none';
+        document.getElementById('section-add').style.display = section === 'add' ? 'block' : 'none';
+        document.getElementById('section-update').style.display = section === 'update' ? 'block' : 'none';
+    };
+</script>
+</body>
+</html>
