@@ -3,36 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Price List App</title>
+    <title>Shop Price List</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
-            background-color: #f8f9fa;
+            background-color: #f1f3f5;
         }
         .app-container {
-            max-width: 500px;
+            max-width: 550px;
             margin: auto;
             min-height: 100vh;
             background: #ffffff;
             box-shadow: 0 0 15px rgba(0,0,0,0.05);
         }
         .nav-btn {
-            font-size: 0.95rem;
-            padding: 12px 4px;
-            border-radius: 10px;
+            font-size: 0.85rem;
+            padding: 10px 2px;
+            border-radius: 8px;
             font-weight: 600;
         }
         .price-card {
             border-radius: 8px;
             background: #fff;
             border-left: 5px solid #0d6efd;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            border: 1px solid #dee2e6;
+            border-left: 5px solid #0d6efd;
         }
         .price-tag {
             font-size: 1.25rem;
             font-weight: 700;
             color: #198754;
+            white-space: nowrap;
+        }
+        .updated-badge {
+            font-size: 0.75rem;
+            color: #6c757d;
         }
     </style>
 </head>
@@ -40,37 +47,53 @@
 
 <div class="app-container p-3">
     <!-- Header -->
-    <div class="text-center py-2 mb-3 border-bottom">
+    <div class="text-center py-2 mb-3 border-bottom d-flex justify-content-between align-items-center">
         <h4 class="fw-bold m-0 text-primary">📦 Price List</h4>
+        <span id="auth-status" class="badge bg-secondary">Viewer Mode</span>
     </div>
 
-    <!-- Navigation Buttons -->
+    <!-- 4 Navigation Buttons -->
     <div class="row g-2 mb-3">
-        <div class="col-4">
-            <button class="btn btn-success w-100 nav-btn" onclick="showSection('add')">🟢 Add Item</button>
+        <div class="col-3">
+            <button class="btn btn-primary w-100 nav-btn" onclick="showSection('view')">📋 All Items</button>
         </div>
-        <div class="col-4">
-            <button class="btn btn-warning w-100 nav-btn text-dark" onclick="showSection('update')">🟠 Update Price</button>
+        <div class="col-3">
+            <button class="btn btn-info w-100 nav-btn text-white" onclick="showSection('today')">🕒 Today</button>
         </div>
-        <div class="col-4">
-            <button class="btn btn-primary w-100 nav-btn" onclick="showSection('view')">🔵 View List</button>
+        <div class="col-3">
+            <button class="btn btn-warning w-100 nav-btn text-dark" onclick="showSection('update')">✏️ Update</button>
+        </div>
+        <div class="col-3">
+            <button class="btn btn-success w-100 nav-btn" onclick="showSection('add')">➕ Add</button>
         </div>
     </div>
 
-    <!-- 1. View & Search Section -->
+    <!-- 1. View & Search Section (All Items) -->
     <div id="section-view">
         <div class="mb-3">
-            <input type="text" id="search-input" class="form-control form-control-lg" placeholder="Search item..." onkeyup="filterItems()">
+            <input type="text" id="search-input" class="form-control form-control-lg" placeholder="Type item name to filter..." oninput="handleSearch()">
         </div>
         <div id="items-list" class="d-flex flex-column gap-2">
-            <div class="text-center text-muted p-4">Loading data...</div>
+            <div class="text-center text-muted p-4">Loading items...</div>
         </div>
     </div>
 
-    <!-- 2. Add Item Section -->
+    <!-- 2. Today's Updates Section -->
+    <div id="section-today" style="display: none;">
+        <h6 class="fw-bold text-secondary mb-3">Items Updated Today</h6>
+        <div id="today-list" class="d-flex flex-column gap-2">
+            <div class="text-center text-muted p-4">No items updated today yet.</div>
+        </div>
+    </div>
+
+    <!-- 3. Add Item Section (PIN Protected) -->
     <div id="section-add" style="display: none;">
         <div class="card p-3 border-0 shadow-sm">
             <h5 class="fw-bold mb-3 text-success">Add New Item</h5>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Security PIN</label>
+                <input type="password" id="add-pin" class="form-control" placeholder="Enter your 4-digit PIN">
+            </div>
             <div class="mb-3">
                 <label class="form-label fw-semibold">Item Name</label>
                 <input type="text" id="add-name" class="form-control form-control-lg" placeholder="e.g. Surf Excel 1kg">
@@ -87,10 +110,14 @@
         </div>
     </div>
 
-    <!-- 3. Update Price Section -->
+    <!-- 4. Update Price Section (PIN Protected) -->
     <div id="section-update" style="display: none;">
         <div class="card p-3 border-0 shadow-sm">
             <h5 class="fw-bold mb-3 text-warning text-dark">Update Item Price</h5>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Security PIN</label>
+                <input type="password" id="update-pin" class="form-control" placeholder="Enter your 4-digit PIN">
+            </div>
             <div class="mb-3">
                 <label class="form-label fw-semibold">Select Item</label>
                 <select id="update-select" class="form-select form-select-lg" onchange="onItemSelect()">
@@ -106,7 +133,7 @@
     </div>
 </div>
 
-<!-- Firebase SDKs -->
+<!-- Firebase Modular SDKs -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -124,19 +151,44 @@
     const db = getFirestore(app);
     const itemsCollection = collection(db, "items");
 
+    // دو یوزرز کے لیے خفیہ پن کوڈز
+    const USERS = {
+        "1122": "Admin",
+        "3344": "Brother"
+    };
+
     let allItems = [];
 
-    const q = query(itemsCollection, orderBy("name"));
+    // تازہ ترین اپڈیٹڈ چیزیں خودکار سب سے اوپر آئیں گی
+    const q = query(itemsCollection, orderBy("updatedAt", "desc"));
     onSnapshot(q, (snapshot) => {
         allItems = [];
         snapshot.forEach((doc) => {
             allItems.push({ id: doc.id, ...doc.data() });
         });
         renderItems(allItems);
+        renderTodayItems(allItems);
         populateDropdown(allItems);
     });
 
+    // پن چیک فنکشن
+    function authenticate(pin) {
+        if (USERS[pin]) {
+            return USERS[pin];
+        }
+        return null;
+    }
+
+    // نیا آئٹم شامل کرنا
     window.saveItem = async function() {
+        const pin = document.getElementById('add-pin').value.trim();
+        const userName = authenticate(pin);
+
+        if (!userName) {
+            alert('غلط سیکیورٹی پن! (Invalid PIN)');
+            return;
+        }
+
         const name = document.getElementById('add-name').value.trim();
         const category = document.getElementById('add-category').value.trim();
         const price = document.getElementById('add-price').value.trim();
@@ -151,19 +203,30 @@
                 name: name,
                 category: category || 'General',
                 price: Number(price),
+                updatedBy: userName,
                 updatedAt: new Date().toISOString()
             });
-            alert('Item added successfully!');
+            alert(`Item added successfully by ${userName}!`);
             document.getElementById('add-name').value = '';
             document.getElementById('add-category').value = '';
             document.getElementById('add-price').value = '';
+            document.getElementById('add-pin').value = '';
             showSection('view');
         } catch (e) {
             alert('Error: ' + e.message);
         }
     };
 
+    // ریٹ اپڈیٹ کرنا
     window.updatePrice = async function() {
+        const pin = document.getElementById('update-pin').value.trim();
+        const userName = authenticate(pin);
+
+        if (!userName) {
+            alert('غلط سیکیورٹی پن! (Invalid PIN)');
+            return;
+        }
+
         const docId = document.getElementById('update-select').value;
         const newPrice = document.getElementById('update-price').value.trim();
 
@@ -176,33 +239,38 @@
             const itemRef = doc(db, "items", docId);
             await updateDoc(itemRef, {
                 price: Number(newPrice),
+                updatedBy: userName,
                 updatedAt: new Date().toISOString()
             });
-            alert('Price updated successfully!');
+            alert(`Price updated successfully by ${userName}!`);
             document.getElementById('update-price').value = '';
+            document.getElementById('update-pin').value = '';
             showSection('view');
         } catch (e) {
             alert('Error: ' + e.message);
         }
     };
 
+    // لسٹ رینڈر کرنا
     window.renderItems = function(items) {
         const listDiv = document.getElementById('items-list');
         listDiv.innerHTML = '';
 
         if(items.length === 0) {
-            listDiv.innerHTML = '<div class="text-center text-muted p-4">No items found. Click "Add Item" to add new products.</div>';
+            listDiv.innerHTML = '<div class="text-center text-muted p-4">No matching items found.</div>';
             return;
         }
 
         items.forEach(item => {
+            const timeString = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) : '';
+            const byUser = item.updatedBy ? ` | By: ${item.updatedBy}` : '';
+            
             const card = document.createElement('div');
             card.className = 'price-card p-3 d-flex justify-content-between align-items-center';
-            card.setAttribute('data-name', item.name.toLowerCase());
             card.innerHTML = `
                 <div>
                     <div class="fw-bold text-dark fs-5">${item.name}</div>
-                    <small class="text-muted">${item.category || ''}</small>
+                    <div class="updated-badge">${item.category || 'General'} • ${timeString}${byUser}</div>
                 </div>
                 <div class="price-tag">Rs. ${item.price}</div>
             `;
@@ -210,6 +278,53 @@
         });
     };
 
+    // صرف آج اپڈیٹ ہونے والی اشیاء کی لسٹ
+    window.renderTodayItems = function(items) {
+        const todayDiv = document.getElementById('today-list');
+        todayDiv.innerHTML = '';
+        const todayDate = new Date().toDateString();
+
+        const todayItems = items.filter(it => {
+            if (!it.updatedAt) return false;
+            return new Date(it.updatedAt).toDateString() === todayDate;
+        });
+
+        if (todayItems.length === 0) {
+            todayDiv.innerHTML = '<div class="text-center text-muted p-4">No items updated today yet.</div>';
+            return;
+        }
+
+        todayItems.forEach(item => {
+            const timeString = new Date(item.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const card = document.createElement('div');
+            card.className = 'price-card p-3 d-flex justify-content-between align-items-center border-info';
+            card.innerHTML = `
+                <div>
+                    <div class="fw-bold text-dark fs-5">${item.name}</div>
+                    <div class="updated-badge">At ${timeString} | By: ${item.updatedBy || 'Admin'}</div>
+                </div>
+                <div class="price-tag text-info">Rs. ${item.price}</div>
+            `;
+            todayDiv.appendChild(card);
+        });
+    };
+
+    // لائیو فاسٹ سرچ فلٹر
+    window.handleSearch = function() {
+        const query = document.getElementById('search-input').value.toLowerCase().trim();
+        if (!query) {
+            renderItems(allItems);
+            return;
+        }
+
+        const filtered = allItems.filter(item => 
+            item.name.toLowerCase().includes(query) || 
+            (item.category && item.category.toLowerCase().includes(query))
+        );
+        renderItems(filtered);
+    };
+
+    // ڈراپ ڈاؤن لسٹ
     function populateDropdown(items) {
         const select = document.getElementById('update-select');
         select.innerHTML = '<option value="">-- Select Item --</option>';
@@ -231,21 +346,10 @@
         }
     };
 
-    window.filterItems = function() {
-        const query = document.getElementById('search-input').value.toLowerCase();
-        const cards = document.querySelectorAll('#items-list .price-card');
-        cards.forEach(card => {
-            const name = card.getAttribute('data-name');
-            if(name.includes(query)) {
-                card.style.display = 'flex';
-            } else {
-                card.style.display = 'none';
-            }
-        });
-    };
-
+    // سیکشن سوئچ
     window.showSection = function(section) {
         document.getElementById('section-view').style.display = section === 'view' ? 'block' : 'none';
+        document.getElementById('section-today').style.display = section === 'today' ? 'block' : 'none';
         document.getElementById('section-add').style.display = section === 'add' ? 'block' : 'none';
         document.getElementById('section-update').style.display = section === 'update' ? 'block' : 'none';
     };
